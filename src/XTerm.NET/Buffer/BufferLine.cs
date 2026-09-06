@@ -1099,6 +1099,18 @@ public class BufferLine : IEnumerable<BufferCell>
         _isWrapped = line._isWrapped;
         _lineAttribute = line._lineAttribute;
 
+        // The runs are the picture, exactly as in Clone above -- a copy that skipped them would
+        // silently lose it. Replaced rather than merged, like every field here: a recycled line
+        // that once held a picture must not keep showing it. The lists are copied but the images
+        // they name are shared; a stored picture is never mutated in place (a retransmission
+        // builds a new one), so a reader holding this copy is safe against later writes.
+        _placements = line._placements is null
+            ? null
+            : new List<Graphics.LinePlacement>(line._placements);
+        _images = line._images is null
+            ? null
+            : new List<Graphics.TerminalImage>(line._images);
+
         // Assigned, not OR-ed: this REPLACES the line's contents rather than adding to them, so
         // the latch belongs to the incoming cells. A recycled scrollback line that once held a
         // wide character would otherwise carry that latch forever.
