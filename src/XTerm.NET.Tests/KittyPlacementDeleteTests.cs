@@ -75,6 +75,48 @@ public class KittyPlacementDeleteTests
         Assert.False(ShowsImage(terminal, 5, 2));
     }
 
+    /// <summary>
+    /// An image on screen is held by its cells, so trimming it from the registry saves nothing and
+    /// breaks the client that places it again: trimming leaves it alone and takes an image nothing
+    /// shows, even a newer one.
+    /// </summary>
+    [Fact]
+    public void Trimming_leaves_an_image_on_screen_alone()
+    {
+        var terminal = NewTerminal(registryBudget: 300);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        PlaceAt(terminal, image: 1, placement: 1, col: 2, row: 1);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");   // unshown
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2 goes, 1 stays
+
+        PlaceAt(terminal, image: 1, placement: 2, col: 4, row: 1);
+        Assert.True(ShowsImage(terminal, 4, 1), "the image on screen can still be placed again");
+
+        PlaceAt(terminal, image: 2, placement: 3, col: 6, row: 1);
+        Assert.False(ShowsImage(terminal, 6, 1), "the image nothing showed was the one trimmed");
+
+        PlaceAt(terminal, image: 3, placement: 4, col: 8, row: 1);
+        Assert.True(ShowsImage(terminal, 8, 1), "the image just stored is never the one trimmed");
+    }
+
+    /// <summary>Placing an image again makes it the most recently used, so trimming takes another first.</summary>
+    [Fact]
+    public void Trimming_takes_the_least_recently_used_image()
+    {
+        var terminal = NewTerminal(registryBudget: 600);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");
+        PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
+        terminal.Write($"{Esc}_Ga=d,d=i,i=1,p=1,q=2{St}");                     // 1 was used, nothing shows it now
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2, untouched since stored, goes
+
+        PlaceAt(terminal, image: 1, placement: 2, col: 2, row: 0);
+        PlaceAt(terminal, image: 2, placement: 3, col: 4, row: 0);
+
+        Assert.True(ShowsImage(terminal, 2, 0), "the image used since it was stored stays");
+        Assert.False(ShowsImage(terminal, 4, 0), "the image never used since it was stored goes");
+    }
+
     [Fact]
     public void A_placement_of_an_image_still_in_the_registry_is_deleted_as_before()
     {

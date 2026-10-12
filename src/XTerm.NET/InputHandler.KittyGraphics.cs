@@ -407,7 +407,8 @@ public partial class InputHandler
 
         // A client that sent only a number gets an id chosen here, and is told what it was.
         var id = command.ImageId != 0 ? command.ImageId : _kittyImages.NextAssignedId();
-        _kittyImages.Store(id, image, _terminal.Options.MaxImageRegistryBytes, command.ImageNumber);
+        _kittyImages.Store(id, image, _terminal.Options.MaxImageRegistryBytes, command.ImageNumber,
+                           _terminal.ShowsImage);
 
         if (command.Action == Graphics.KittyAction.TransmitAndDisplay)
             PlaceKittyImage(image, command, id);
