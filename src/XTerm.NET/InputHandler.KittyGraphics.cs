@@ -407,6 +407,15 @@ public partial class InputHandler
 
         // A client that sent only a number gets an id chosen here, and is told what it was.
         var id = command.ImageId != 0 ? command.ImageId : _kittyImages.NextAssignedId();
+
+        // "When re-transmitting image data for a specific id, the existing image and all its
+        // placements must be deleted." A client that shows a picture in blocks sends a changed
+        // block again under the block's id and then places it anew; the placements of the old
+        // pixels left on screen were fragments of the old picture wherever the new placements did
+        // not cover them.
+        if (command.ImageId != 0)
+            _terminal.DropPlacements(p => IsKittyPlacementOf(p, id));
+
         _kittyImages.Store(id, image, _terminal.Options.MaxImageRegistryBytes, command.ImageNumber,
                            _terminal.ShowsImage);
 

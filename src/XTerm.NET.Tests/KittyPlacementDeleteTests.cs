@@ -117,6 +117,26 @@ public class KittyPlacementDeleteTests
         Assert.False(ShowsImage(terminal, 4, 0), "the image never used since it was stored goes");
     }
 
+    /// <summary>
+    /// "When re-transmitting image data for a specific id, the existing image and all its placements
+    /// must be deleted." A client that shows a picture in blocks sends a changed block again under its
+    /// id and places it anew; a placement of the old pixels that the new ones do not cover must not stay.
+    /// </summary>
+    [Fact]
+    public void Retransmitting_an_id_drops_the_placements_of_the_image_it_replaces()
+    {
+        var terminal = NewTerminal(registryBudget: 0);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
+        PlaceAt(terminal, image: 1, placement: 2, col: 4, row: 0);
+
+        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(2)}{St}");
+        PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
+
+        Assert.True(ShowsImage(terminal, 0, 0), "the placement made after the retransmit shows");
+        Assert.False(ShowsImage(terminal, 4, 0), "the old image's other placement went with it");
+    }
+
     [Fact]
     public void A_placement_of_an_image_still_in_the_registry_is_deleted_as_before()
     {
