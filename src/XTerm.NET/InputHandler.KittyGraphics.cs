@@ -825,7 +825,7 @@ public partial class InputHandler
     private void DeleteKittyImageByIdentity(Graphics.KittyCommand command, bool byNumber, bool alsoFree)
     {
         uint id;
-        Graphics.TerminalImage image;
+        Graphics.TerminalImage? image;
 
         if (byNumber)
         {
@@ -835,8 +835,17 @@ public partial class InputHandler
         else
         {
             id = command.ImageId;
-            if (id == 0 || !_kittyImages.TryGet(id, out image))
+            if (id == 0)
                 return;
+
+            // The registry may have trimmed this id to stay in budget while its appearances are still
+            // on screen: a placement holds its own pixels. The client still means those appearances
+            // when it names the id, so an unknown id deletes by the client's id alone. Returning
+            // instead left every picture a client had deleted on screen for good once its registry
+            // had turned over -- a dialog dragged across pictures filled the budget with the blocks
+            // along its edges, and then nothing it covered could be taken away.
+            if (!_kittyImages.TryGet(id, out image))
+                image = null;
         }
 
         // By the client's id as well as the image object. Appearances placed before the client last
@@ -845,15 +854,16 @@ public partial class InputHandler
         // sprites on screen after it deleted them.
         if (command.PlacementId != 0)
         {
-            _terminal.DropPlacements(p => (p.ImageId == image.Id || IsKittyPlacementOf(p, id))
+            _terminal.DropPlacements(p => ((image is not null && p.ImageId == image.Id) || IsKittyPlacementOf(p, id))
                                           && p.PlacementId == command.PlacementId);
             return;
         }
 
-        _terminal.DropImage(image);
+        if (image is not null)
+            _terminal.DropImage(image);
         _terminal.DropPlacements(p => IsKittyPlacementOf(p, id));
 
-        if (alsoFree)
+        if (alsoFree && image is not null)
             _kittyImages.Remove(id);
     }
 
