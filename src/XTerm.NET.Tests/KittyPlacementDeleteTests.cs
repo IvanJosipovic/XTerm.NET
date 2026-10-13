@@ -16,14 +16,19 @@ public class KittyPlacementDeleteTests
     private const string Esc = "\u001b";
     private const string St = Esc + "\\";
 
-    /// <summary>An 8x8 RGBA image: 256 bytes, one cell at the 8x16 cells set below.</summary>
+    /// <summary>A 256x256 RGBA image: 262,144 bytes, placed into one cell by c=1,r=1 below.</summary>
     private static string Pixels(byte value)
     {
-        var bytes = new byte[8 * 8 * 4];
+        var bytes = new byte[256 * 256 * 4];
         Array.Fill(bytes, value);
         return Convert.ToBase64String(bytes);
     }
 
+    /// <summary>
+    /// 20x5 cells of 8x16 pixels: one screen is 51,200 bytes. The registry holds at least three
+    /// screens (153,600 bytes) whatever the option says, so the budgets below are set above that to
+    /// be the ones in force, and the images are sized so a few of them fill one.
+    /// </summary>
     private static Terminal NewTerminal(long registryBudget) =>
         new(new TerminalOptions
         {
@@ -37,7 +42,7 @@ public class KittyPlacementDeleteTests
     private static void PlaceAt(Terminal terminal, uint image, uint placement, int col, int row)
     {
         terminal.Write($"{Esc}[{row + 1};{col + 1}H");
-        terminal.Write($"{Esc}_Ga=p,i={image},p={placement},C=1,q=2{St}");
+        terminal.Write($"{Esc}_Ga=p,i={image},p={placement},c=1,r=1,C=1,q=2{St}");
     }
 
     private static bool ShowsImage(Terminal terminal, int col, int row)
@@ -46,13 +51,13 @@ public class KittyPlacementDeleteTests
     [Fact]
     public void A_placement_is_deleted_by_its_ids_after_the_registry_trimmed_its_image()
     {
-        // room for one 256-byte image: the second transmit trims the first
-        var terminal = NewTerminal(registryBudget: 300);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        // room for one 262,144-byte image: the second transmit trims the first
+        var terminal = NewTerminal(registryBudget: 300_000);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 2, row: 1);
         Assert.True(ShowsImage(terminal, 2, 1), "sanity: the placement is on screen");
 
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=2,q=2;{Pixels(2)}{St}");
         Assert.True(ShowsImage(terminal, 2, 1), "trimming the image from the registry leaves its appearance");
 
         terminal.Write($"{Esc}_Ga=d,d=i,i=1,p=1,q=2{St}");
@@ -63,11 +68,11 @@ public class KittyPlacementDeleteTests
     [Fact]
     public void Deleting_a_trimmed_image_drops_its_placements()
     {
-        var terminal = NewTerminal(registryBudget: 300);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        var terminal = NewTerminal(registryBudget: 300_000);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
         PlaceAt(terminal, image: 1, placement: 2, col: 5, row: 2);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=2,q=2;{Pixels(2)}{St}");
 
         terminal.Write($"{Esc}_Ga=d,d=I,i=1,q=2{St}");
 
@@ -83,11 +88,11 @@ public class KittyPlacementDeleteTests
     [Fact]
     public void Trimming_leaves_an_image_on_screen_alone()
     {
-        var terminal = NewTerminal(registryBudget: 300);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        var terminal = NewTerminal(registryBudget: 300_000);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 2, row: 1);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");   // unshown
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2 goes, 1 stays
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=2,q=2;{Pixels(2)}{St}");   // unshown
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2 goes, 1 stays
 
         PlaceAt(terminal, image: 1, placement: 2, col: 4, row: 1);
         Assert.True(ShowsImage(terminal, 4, 1), "the image on screen can still be placed again");
@@ -103,12 +108,12 @@ public class KittyPlacementDeleteTests
     [Fact]
     public void Trimming_takes_the_least_recently_used_image()
     {
-        var terminal = NewTerminal(registryBudget: 600);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=2,q=2;{Pixels(2)}{St}");
+        var terminal = NewTerminal(registryBudget: 600_000);
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=2,q=2;{Pixels(2)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
         terminal.Write($"{Esc}_Ga=d,d=i,i=1,p=1,q=2{St}");                     // 1 was used, nothing shows it now
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2, untouched since stored, goes
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=3,q=2;{Pixels(3)}{St}");   // over budget: 2, untouched since stored, goes
 
         PlaceAt(terminal, image: 1, placement: 2, col: 2, row: 0);
         PlaceAt(terminal, image: 2, placement: 3, col: 4, row: 0);
@@ -126,11 +131,11 @@ public class KittyPlacementDeleteTests
     public void Retransmitting_an_id_drops_the_placements_of_the_image_it_replaces()
     {
         var terminal = NewTerminal(registryBudget: 0);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
         PlaceAt(terminal, image: 1, placement: 2, col: 4, row: 0);
 
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(2)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(2)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 0, row: 0);
 
         Assert.True(ShowsImage(terminal, 0, 0), "the placement made after the retransmit shows");
@@ -141,7 +146,7 @@ public class KittyPlacementDeleteTests
     public void A_placement_of_an_image_still_in_the_registry_is_deleted_as_before()
     {
         var terminal = NewTerminal(registryBudget: 0);
-        terminal.Write($"{Esc}_Ga=t,f=32,s=8,v=8,i=1,q=2;{Pixels(1)}{St}");
+        terminal.Write($"{Esc}_Ga=t,f=32,s=256,v=256,i=1,q=2;{Pixels(1)}{St}");
         PlaceAt(terminal, image: 1, placement: 1, col: 3, row: 3);
         PlaceAt(terminal, image: 1, placement: 2, col: 6, row: 3);
 
