@@ -1459,6 +1459,36 @@ public class Terminal : IDisposable
         return found;
     }
 
+    /// <summary>
+    /// Whether any placement in either buffer, on screen or in the scrollback, shows the image.
+    /// </summary>
+    /// <remarks>
+    /// What the image registry asks before trimming an image: one that is shown is held by the
+    /// cells regardless, and a client that placed it will name its id again when it has to place
+    /// it anew, so dropping the id would make that placement show nothing.
+    /// </remarks>
+    internal bool ShowsImage(Graphics.TerminalImage image)
+        => ShowsImage(_normalBuffer, image) || ShowsImage(_altBuffer, image);
+
+    private static bool ShowsImage(Buffer.TerminalBuffer? buffer, Graphics.TerminalImage image)
+    {
+        if (buffer is null)
+            return false;
+
+        for (int i = 0; i < buffer.Lines.Length; i++)
+        {
+            var line = buffer.Lines[i];
+            if (line is null || !line.HasImages)
+                continue;
+
+            foreach (var placement in line.Placements)
+                if (placement.ImageId == image.Id)
+                    return true;
+        }
+
+        return false;
+    }
+
     private static void DropPlacements(Buffer.TerminalBuffer? buffer,
                                        Func<Graphics.LinePlacement, bool> predicate)
     {
