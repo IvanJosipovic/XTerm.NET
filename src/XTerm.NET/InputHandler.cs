@@ -1064,12 +1064,18 @@ public partial class InputHandler
     /// <summary>The Sixel image being decoded, if a DECSIXEL payload is currently arriving.</summary>
     private Graphics.SixelDecoder? _sixelDecoder;
 
+    /// <summary>The decoder's buffers, reused from one Sixel to the next. See <see cref="Graphics.SixelCanvas"/>.</summary>
+    private readonly Graphics.SixelCanvas _sixelCanvas = new();
+
     /// <summary>
     /// The colour registers used when mode 1070 is reset, so images inherit each other's palette
     /// the way they did on a VT340. Built on first use, because the default is private registers
     /// and most sessions never touch this.
     /// </summary>
     private Graphics.SixelPalette? _sharedSixelPalette;
+
+    /// <summary>Returns the shared Sixel colour registers to their defaults (RIS).</summary>
+    internal void ResetSixelPalette() => _sharedSixelPalette = null;
 
     /// <summary>The XTGETTCAP request being read, if a DCS + q payload is currently arriving.</summary>
     private StringBuilder? _capabilityRequest;
